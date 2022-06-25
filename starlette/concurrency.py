@@ -18,10 +18,21 @@ T = typing.TypeVar("T")
 
 
 async def run_until_first_complete(*args: typing.Tuple[typing.Callable, dict]) -> None:
-    tasks = [create_task(handler(**kwargs)) for handler, kwargs in args]
+    async def run(func: typing.Callable[[], typing.Coroutine]) -> None:
+        await func()
+        # (starlette 0.15.0) starlette.concurrency.run_until_first_complete `task_group.cancel_scope.cancel()`
+        for task in tasks:
+            if not task.done() and task != asyncio.current_task():
+                task.cancel()
+
+    tasks = [create_task(run(functools.partial(handler, **kwargs))) for handler, kwargs in args]
     (done, pending) = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
     [task.cancel() for task in pending]
-    [task.result() for task in done]
+    for task in done:
+        try:
+            task.result()
+        except asyncio.CancelledError:
+            pass
 
 
 async def run_in_threadpool(

@@ -31,7 +31,10 @@ class BaseHTTPMiddleware:
 
         scope = request.scope
         receive = request.receive
-        send = queue.put
+
+        async def send(item: typing.Any) -> None:
+            await asyncio.sleep(0)  # anyio.streams.memory.MemoryObjectSendStream.send `await checkpoint()`
+            await queue.put(item)
 
         async def coro() -> None:
             try:
